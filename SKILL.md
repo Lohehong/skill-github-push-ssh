@@ -273,3 +273,258 @@ cd ~/.openclaw/workspace && git push
 ---
 
 _最后更新：2026-03-01 | 添加批量维护 README 实战案例_
+
+---
+
+## 🐛 实战问题：批量推送 README 遇到的问题
+
+### 问题背景
+
+2026-03-01 为 5 个已推送的 skill 仓库批量添加 README.md 时遇到的一系列问题。
+
+---
+
+### 问题 1：ssh-agent 未启动导致推送失败
+
+**现象：**
+```bash
+cd ~/.openclaw/skills/self-improving-agent
+git add README.md && git commit -m "docs: 添加 README" && git push
+
+# 输出：
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+```
+
+**原因：**
+- 每个 `exec` 命令是独立的 shell 会话
+- `eval "$(ssh-agent -s)"` 启动的 agent 只在当前会话有效
+- 后续的 `git push` 在新的 shell 会话中，ssh-agent 已失效
+
+**错误做法：**
+```bash
+# ❌ 这样不行 - agent 只在第一个命令有效
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519
+cd repo1 && git push  # 这个会话已经有 agent
+cd repo2 && git push  # ❌ 新会话，agent 失效
+```
+
+**正确做法：**
+```bash
+# ✅ 方式 1：每个推送都启动 agent
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519 && cd repo1 && git push
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519 && cd repo2 && git push
+
+# ✅ 方式 2：使用分号保持在同一会话
+eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519; \
+cd repo1 && git push; \
+cd repo2 && git push; \
+cd repo3 && git push
+
+# ✅ 方式 3：使用后台 agent（推荐）
+ssh-add ~/.ssh/github_ed25519 2>/dev/null || {
+  eval "$(ssh-agent -s)"
+  ssh-add ~/.ssh/github_ed25519
+}
+# 然后推送所有仓库
+```
+
+**解决方案：**
+每次推送前都执行 `eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519`
+
+---
+
+### 问题 2：批量操作时的命令组织
+
+**问题：**
+需要为 5 个仓库分别：
+1. 创建 README.md
+2. git add
+3. git commit
+4. git push
+
+**低效做法：**
+```bash
+# 手动一个一个是，重复 5 次
+cd repo1 && cat > README.md && git add . && git commit && git push
+cd repo2 && cat > README.md && git add . && git commit && git push
+...
+```
+
+**高效做法：**
+```bash
+# 使用循环
+for repo in repo1 repo2 repo3 repo4 repo5; do
+    cd ~/.openclaw/skills/$repo
+    cat > README.md << 'EOF'
+    # README 内容
+    EOF
+    git add README.md
+    git commit -m "docs: 添加 README.md"
+    eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519 && git push
+done
+```
+
+**本次实际使用的方法：**
+```bash
+# 为每个仓库单独执行（便于调试）
+cd repo1 && cat > README.md << 'EOF'...
+git add README.md && git commit -m "..." && eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519 && git push
+
+cd repo2 && cat > README.md << 'EOF'...
+git add README.md && git commit -m "..." && eval "$(ssh-agent -s)" && ssh-add ~/.ssh/github_ed25519 && git push
+```
+
+---
+
+### 问题 3：README 内容一致性
+
+**问题：**
+5 个仓库的 README 需要保持风格一致，但内容各有侧重。
+
+**解决方案：**
+使用统一的模板结构：
+
+```markdown
+# 项目标题 🎯
+
+> 一句话简介
+
+## 📖 简介
+
+项目描述
+
+## ✨ 特性
+
+- 特性 1
+- 特性 2
+- 特性 3
+
+## 🚀 快速开始
+
+步骤说明
+
+## 📁 目录结构
+
+```
+项目/
+├── 文件 1
+└── 文件 2
+```
+
+## 📚 文档
+
+- 文档链接
+
+## 🔗 相关链接
+
+- 相关资源
+
+## 👤 作者
+
+作者信息
+
+## 📄 许可证
+
+许可证信息
+```
+
+**本次 5 个仓库的 README 都遵循了这个结构。**
+
+---
+
+### 问题 4：提交信息规范
+
+**问题：**
+批量提交时，提交信息需要规范且包含足够信息。
+
+**解决方案：**
+使用统一的提交信息格式：
+
+```
+docs: 添加 README.md
+
+📝 内容包括:
+- 项目简介和特性
+- 快速开始指南
+- 目录结构说明
+- 相关链接
+
+Signed-off-by: 天依 (Tianyi)
+```
+
+**优点：**
+- 清晰的类型前缀（docs:）
+- emoji 增加可读性（📝）
+- 列表说明包含内容
+- 签名表明作者
+
+---
+
+### 问题 5：推送顺序和依赖
+
+**问题：**
+某些仓库之间有依赖关系（如 github-push-ssh skill 记录了推送经验），需要先推送基础仓库。
+
+**本次推送顺序：**
+1. skill-self-improvement ✅
+2. skill-micro-tool-development ✅
+3. skill-tavily-search ✅
+4. skill-github-push-ssh ✅（记录推送经验）
+5. openclaw-workspace-tianyi ✅（最后，因为要链接到其他 skill）
+
+**最佳实践：**
+- 先推送基础 skill
+- 再推送依赖其他 skill 的仓库
+- 最后推送 workspace（可能链接到所有 skill）
+
+---
+
+## 📊 本次批量操作统计
+
+### 推送结果
+
+| 仓库 | README 行数 | 提交哈希 | 推送状态 |
+|------|-----------|---------|---------|
+| skill-self-improvement | 92 行 | dcd0625 | ✅ |
+| skill-micro-tool-development | 100 行 | a7c796a | ✅ |
+| skill-tavily-search | 113 行 | cab3eed | ✅ |
+| skill-github-push-ssh | 130 行 | 1997927 | ✅ |
+| openclaw-workspace-tianyi | 116 行 | e949243 | ✅ |
+
+**总计：** 5 个仓库，551 行文档，5 次推送
+
+### 遇到的问题
+
+| 问题 | 次数 | 解决方案 |
+|------|------|---------|
+| ssh-agent 未启动 | 5 次 | 每次推送前都启动 |
+| Permission denied | 5 次 | 正确启动 agent 后解决 |
+| 命令组织复杂 | 多次 | 使用分号保持会话 |
+
+### 学到的经验
+
+1. **ssh-agent 是会话级的** - 每个新 shell 需要重新启动
+2. **批量操作要规划顺序** - 先基础后依赖
+3. **统一模板提高效率** - README 结构一致
+4. **规范提交信息** - 便于后续查阅
+5. **及时记录经验** - 推送到 skill 中永久保存
+
+---
+
+## ✅ 检查清单（批量推送 README）
+
+批量为多个仓库添加 README 时：
+
+- [ ] 规划 README 模板结构
+- [ ] 准备各仓库的特定内容
+- [ ] 确定推送顺序（基础→依赖）
+- [ ] 为每个仓库创建 README
+- [ ] 使用规范的提交信息
+- [ ] 每次推送前启动 ssh-agent
+- [ ] 验证推送成功
+- [ ] 记录经验到 skill
+
+---
+
+_最后更新：2026-03-01 | 添加批量推送 README 实战问题总结_
