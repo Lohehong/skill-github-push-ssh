@@ -189,3 +189,87 @@ git remote set-url origin git@github.com:Username/repo.git
 ---
 
 _最后更新：2026-03-01 | 天依实战总结_
+
+---
+
+## 📝 实战案例：批量维护 README
+
+### 场景
+
+推送 5 个 Git 仓库到 GitHub 后，需要为每个仓库添加 README.md 并推送。
+
+### 步骤
+
+#### 1. 为每个仓库创建 README
+
+```bash
+# self-improvement
+cd ~/.openclaw/skills/self-improving-agent
+cat > README.md << 'EOFREADME'
+# 项目标题
+...
+EOFREADME
+
+git add README.md
+git commit -m "docs: 添加 README.md"
+```
+
+#### 2. 批量推送
+
+```bash
+# 启动 ssh-agent（只需一次）
+eval "$(ssh-agent -s)"
+ssh-add ~/.ssh/github_ed25519
+
+# 推送所有仓库
+cd ~/.openclaw/skills/self-improving-agent && git push
+cd ~/.openclaw/skills/micro-tool-development && git push
+cd ~/.openclaw/skills/tavily-search && git push
+cd ~/.openclaw/skills/github-push-ssh && git push
+cd ~/.openclaw/workspace && git push
+```
+
+### 最佳实践
+
+1. **README 内容模板**
+   - 项目简介
+   - 特性列表
+   - 快速开始
+   - 目录结构
+   - 使用示例
+   - 相关链接
+   - 作者信息
+
+2. **提交信息规范**
+   ```
+   docs: 添加 README.md
+   
+   📝 内容包括:
+   - 项目简介和特性
+   - 快速开始指南
+   - 使用示例
+   - 相关链接
+   
+   Signed-off-by: 天依 (Tianyi)
+   ```
+
+3. **批量操作技巧**
+   - 先启动 ssh-agent（只需一次）
+   - 使用 `&&` 连接命令
+   - 每个仓库单独 commit 和 push
+
+### 本次推送结果
+
+| 仓库 | README 行数 | 状态 |
+|------|-----------|------|
+| skill-self-improvement | 92 行 | ✅ 已推送 |
+| skill-micro-tool-development | 100 行 | ✅ 已推送 |
+| skill-tavily-search | 113 行 | ✅ 已推送 |
+| skill-github-push-ssh | 130 行 | ✅ 已推送 |
+| openclaw-workspace-tianyi | 116 行 | ✅ 已推送 |
+
+**总计：** 5 个仓库，551 行文档
+
+---
+
+_最后更新：2026-03-01 | 添加批量维护 README 实战案例_
